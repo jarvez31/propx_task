@@ -31,6 +31,21 @@ This fetches footprints + DEM + ortho for the area, extracts attributes for 10 b
 
 Other presets: `--location sonnwendviertel|museumsquartier`; change the mix with `--seed`, count with `--n`.
 
+### The 10 buildings (Karlsplatz, seed 42)
+
+| FMZK id | lat, lon | type | material | roof m² | height m |
+| --- | --- | --- | --- | --- | --- |
+| 4004308561 | 48.19838, 16.36812 | gable | slate | 812 | 24 |
+| 4006223345 | 48.19785, 16.36807 | mono_pitch | slate | 238 | 5 |
+| 4002350624 | 48.19789, 16.36853 | hipped_pyramidal | metal | 514 | 25 |
+| 4003631581 | 48.19874, 16.36815 | complex | terracotta_tile | 452 | 14 |
+| 4002350549 | 48.19816, 16.36900 | gable | slate | 177 | 26 |
+| 4002350509 | 48.19823, 16.36866 | complex | slate | 564 | 29 |
+| 4002350654 | 48.19788, 16.36784 | hipped | metal | 258 | 28 |
+| 4002350643 | 48.19784, 16.36879 | mono_pitch | metal | 510 | 25 |
+| 4003631637 | 48.19856, 16.36806 | hipped_pyramidal | slate | 284 | 10 |
+| 4003631562 | 48.19879, 16.36853 | hipped | terracotta_tile | 221 | 14 |
+
 **Explore interactively:** open `roof_attributes.ipynb` (`make notebook`). Change the CONFIG box to
 any part of Vienna, then `inspect_roof(<FMZK_ID>)` for a zoomable, per-building view (ortho with the
 roof outline, nDSM + superstructures, slope, and the RANSAC facets — with a masked/unmasked toggle).
@@ -47,9 +62,10 @@ roof outline, nDSM + superstructures, slope, and the RANSAC facets — with a ma
     "roof": {
       "polygon": [[16.3679, 48.1985], ...],   // height-derived outline, EPSG:4326
       "area_m2": 743.2, "footprint_area_m2": 743.0,
-      "type": "gable", "material": "metal",
+      "type": "gable", "material": "slate",
       "orientation_deg": 210.0, "slope_deg": 29.3, "height_m": 18.4,
       "n_planes": 4,
+      "planes": [ { "slope_deg": 29.9, "aspect_deg": 78.0, "area_m2": 143.5 }, ... ],
       "solar_pv": false, "green_roof": false, "condition": "good",
       "superstructures": [ { "class": "chimney", "area_m2": 1.5, "height_m": 1.9 }, ... ]
     },
@@ -68,7 +84,7 @@ roof outline, nDSM + superstructures, slope, and the RANSAC facets — with a ma
 | Roof type | RANSAC plane count + orientation | **High** — confidence = plane coverage (0.8–0.96) |
 | Slope / orientation / height | median + circular mean over roof | **High** |
 | Superstructures | pixels > 1 m above their fitted plane | **Medium** — finds dormers/HVAC/large chimneys; 0.5 m DSM misses small vents |
-| Material | CLIP zero-shot | **Medium** — tile/metal/gravel sensible; under-calls terracotta |
+| Material | CLIP prompt-ensemble, slope-constrained | **Medium** — vocabulary incl. slate (Vienna mansards); structure vetoes flat gravel on steep facets; deep shadow can still read tile as slate |
 | Solar PV | CLIP zero-shot | **Medium** — flagged by confidence; borderline cases stay ~0.5 |
 | Condition | CLIP zero-shot | **Advisory** |
 | Green roof | CLIP zero-shot (RGB only) | **Advisory** — needs NIR/NDVI for a real answer |
@@ -117,10 +133,16 @@ make lint      # ruff
 CI (GitHub Actions) runs the unit tests on every push. Data is © Stadt Wien
 (data.wien.gv.at), CC BY 4.0; code is MIT (see `LICENSE`).
 
+**Tools used:** Python (geopandas, rasterio, shapely, contextily, open_clip / PyTorch CPU),
+CLIP ViT-B/32 (OpenAI weights) for zero-shot appearance. AI assistants (Claude) were used for
+design review, debugging and documentation editing; the pipeline design, data-source choices and
+final code are my own.
+
 ## What I'd do with more time
 
 - Replace the flat/pitched slope threshold entirely with per-facet types from the plane set.
 - Add NIR (Vienna CIR ortho or the 2023 RGBI LiDAR) for a real NDVI green-roof signal.
-- Fine-tune / prompt-engineer the material classifier (terracotta is under-called).
+- Calibrate the material classifier against a small labelled set (prompt ensembles + a slate class +
+  a slope prior fixed the systematic terracotta under-call, but shadowed tile can still read as slate).
 - Handle the **DSM/ortho temporal gap** on redeveloped land (e.g. Sonnwendviertel) with a
   co-temporal photogrammetric surface or a build-year source — currently flagged, not corrected.
