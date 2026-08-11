@@ -5,6 +5,17 @@ import os
 from . import appearance, attributes, data, planes, roof_mask, surfaces, viz
 from .config import Config
 
+# Two different notions of "confidence" live in the record; label which is which so a reader of the
+# raw JSON isn't misled. "p_reported_class" = probability of the value we reported (CLIP softmax of the
+# winner). "evidence_support" = a fit / data-completeness proxy (coverage, circular R, valid-pixel
+# fraction) — high means well-supported, NOT literally P(the value is correct).
+CONFIDENCE_KIND = {
+    "area": "evidence_support",  "type": "evidence_support",
+    "orientation": "evidence_support", "slope": "evidence_support",
+    "material": "p_reported_class", "solar_pv": "p_reported_class",
+    "green_roof": "p_reported_class", "condition": "p_reported_class",
+}
+
 
 def _source_line(ortho_year):
     return (f"Stadt Wien OGD: orthophoto lb{ortho_year} (0.1 m) + ALS DSM/DGM 0.5 m (nDSM) + FMZK footprints; "
@@ -36,15 +47,25 @@ def extract_building(geom, fmzk_id, scene: data.Scene, config: Config):
 
     on_ortho = roof_mask.roof_mask_on_ortho(roof, scene.dsm_transform, scene.img, scene.ortho_transform)
     roof_img = roof_mask.crop_to_roof(scene.img, on_ortho)
+
+    # Fusion consistency: structure constrains appearance. A gravel/bitumen build-up cannot sit on a
+    # steep pitch, so on clearly pitched roofs CLIP only ranks the materials that are physically
+    # possible there — otherwise a red tile roof in shadow can win as "flat_gravel" at 35 deg.
+    material_prompts = appearance.MATERIAL_PROMPTS
+    steep = any(p["slope_deg"] >= config.gravel_max_slope and p["area_m2"] >= 5 for p in facets)
+    if steep:
+        material_prompts = [p for p in material_prompts if p[0] != "flat_gravel"]
+
     if roof_img is not None:
-        material = appearance.clip_scores(roof_img, appearance.MATERIAL_PROMPTS)
+        material = appearance.clip_scores(roof_img, material_prompts)
         best_material = max(material, key=material.get)
         pv    = appearance.clip_scores(roof_img, appearance.PV_PROMPTS)
         green = appearance.clip_scores(roof_img, appearance.GREEN_PROMPTS)
         cond  = appearance.clip_scores(roof_img, appearance.COND_PROMPTS)
     else:
         material, best_material = {"unknown": 0.0}, "unknown"
-        pv = green = {"yes": 0.0}
+        pv = {"yes": 0.0}
+        green = {"yes": 0.0}
         cond = {"good": 0.0, "weathered": 0.0}
 
     record = {
@@ -60,6 +81,8 @@ def extract_building(geom, fmzk_id, scene: data.Scene, config: Config):
             "slope_deg": g["slope_deg"],
             "height_m": g["height_m"],
             "n_planes": len(facets),
+            "planes": [{"slope_deg": p["slope_deg"], "aspect_deg": p["aspect_deg"],
+                        "area_m2": p["area_m2"]} for p in facets],
             "solar_pv": bool(pv["yes"] > 0.5),
             "green_roof": bool(green["yes"] > 0.5),
             "condition": "weathered" if cond["weathered"] > 0.5 else "good",
@@ -71,13 +94,25 @@ def extract_building(geom, fmzk_id, scene: data.Scene, config: Config):
             "material": round(material[best_material], 2),
             "orientation": round(g["resultant"], 2) if rtype != "flat" else 0.0,
             "slope": round(g["valid_frac"] * g["size_ok"], 2),
-            "solar_pv": round(pv["yes"], 2),
-            "green_roof": round(green["yes"], 2),
+            "solar_pv": round(max(pv.values()), 2),        # confidence in the REPORTED class (yes or no),
+            "green_roof": round(max(green.values()), 2),   # so False+0.00 can't happen; consistent with condition
             "condition": round(max(cond.values()), 2),
         },
-        "notes": ("roof outline height-derived (nDSM>2m) then clipped to FMZK; area/slope/orientation in "
-                  "EPSG:31256; type & superstructures from RANSAC planes; material/pv/green/condition from "
-                  "CLIP (RGB only -> green roof has no NIR, treat as advisory)."),
+        "confidence_kind": CONFIDENCE_KIND,             # what each confidence number actually means
+        "clip_raw": {                                   # full zero-shot distributions, not just the winner
+            "material":  {k: round(v, 3) for k, v in material.items()},
+            "pv":        {k: round(v, 3) for k, v in pv.items()},
+            "green":     {k: round(v, 3) for k, v in green.items()},
+            "condition": {k: round(v, 3) for k, v in cond.items()},
+        },
+        "notes": ("roof outline height-derived (nDSM>2m) inside the footprint's outer ring, so roof area can "
+                  "exceed footprint area where a mapped courtyard hole is actually covered; area/slope/"
+                  "orientation in EPSG:31256; type & superstructures from RANSAC planes; material/pv/green/"
+                  "condition from CLIP (RGB only -> green roof has no NIR, treat as advisory). confidence_kind "
+                  "says whether each confidence is P(reported class) or an evidence-support proxy "
+                  "(coverage/R/valid-frac)."
+                  + (" material vocabulary constrained by structure: flat_gravel excluded because a facet "
+                     f"pitches >= {config.gravel_max_slope:.0f} deg." if steep else "")),
     }
     return record, outline
 

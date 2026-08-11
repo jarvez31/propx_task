@@ -26,6 +26,7 @@ class Config:
     flat_thresh:  float = 10.0  # deg: a facet flatter than this counts as flat
     plane_tol:    float = 0.3   # m: RANSAC inlier band around a fitted roof plane
     min_facet_px: int   = 30    # 0.5 m px -> a real roof facet is >= ~7.5 m^2
+    gravel_max_slope: float = 20.0  # deg: above this facet pitch, flat gravel/bitumen is physically implausible
 
     out_json: str = "outputs/roof_attributes.json"
     fig_path: str = "figures/attributes_overlay.png"

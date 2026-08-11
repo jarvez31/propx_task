@@ -3,24 +3,39 @@
 FMZK footprints can enclose inner courtyards; keeping only nDSM > roof_min_h samples the roof
 and not the yard. The kept region, polygonised, is a roof outline derived from height alone —
 a real detection, no segmentation model.
+
+We rasterise the footprint's OUTER ring (holes filled) and let height arbitrate the openings:
+a genuine open courtyard drops out because it sits at ~ground (nDSM < roof_min_h), while a feature
+mounted OVER a mapped hole (e.g. a PV array over a covered light-well, nDSM ~ 11 m) is kept. Trusting
+FMZK's holes blindly would mask such features even though the height model shows the opening is covered.
 """
 import numpy as np
 from PIL import Image
 from rasterio.crs import CRS
 from rasterio.features import geometry_mask, shapes
 from rasterio.warp import Resampling, reproject
+from shapely.geometry import MultiPolygon, Polygon
 from shapely.geometry import shape as to_shape
 from shapely.ops import unary_union
 
 
+def _fill_holes(geom):
+    """Footprint with interior rings dropped, so height (not FMZK) decides what the holes contain."""
+    parts = list(geom.geoms) if geom.geom_type == "MultiPolygon" else [geom]
+    filled = [Polygon(p.exterior) for p in parts]
+    return filled[0] if len(filled) == 1 else MultiPolygon(filled)
+
+
 def roof_from_height(geom, dsm_transform, ndsm, roof_min_h=2.0, min_facet_px=30):
     """Return (roof mask on DSM grid, roof outline poly in EPSG:31256, roof area m^2)."""
-    full = geometry_mask([geom], out_shape=ndsm.shape, transform=dsm_transform, invert=True)
+    outer = _fill_holes(geom)                               # outer ring; height arbitrates the openings
+    full = geometry_mask([outer], out_shape=ndsm.shape, transform=dsm_transform, invert=True)
     roof = full & np.isfinite(ndsm) & (ndsm > roof_min_h)
     if roof.sum() < min_facet_px:                            # tiny/low building: fall back to footprint
         roof = full & np.isfinite(ndsm)
     parts = [to_shape(g) for g, v in shapes(roof.astype("uint8"), mask=roof, transform=dsm_transform) if v == 1]
-    outline = unary_union(parts).simplify(0.3) if parts else geom
+    # simplify above the 0.5 m pixel size so the raster staircase collapses to clean edges
+    outline = unary_union(parts).simplify(0.6) if parts else geom
     roof_area = float(roof.sum()) * abs(dsm_transform.a) * abs(dsm_transform.e)
     return roof, outline, roof_area
 
