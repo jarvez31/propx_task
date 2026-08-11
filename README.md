@@ -76,7 +76,7 @@ roof outline, nDSM + superstructures, slope, and the RANSAC facets — with a ma
 }
 ```
 
-## What each source lets us extract (honest judgement)
+## What each source lets us extract
 
 | Attribute | Method | Reliability |
 | --- | --- | --- |
@@ -90,16 +90,18 @@ roof outline, nDSM + superstructures, slope, and the RANSAC facets — with a ma
 | Green roof | CLIP zero-shot (RGB only) | **Advisory** — needs NIR/NDVI for a real answer |
 | Thermal / insulation | — | **Not recoverable** per-building (ECOSTRESS ≈ 70 m ≫ a roof) |
 
-See [`docs/writeup.md`](docs/writeup.md) for the full design & reasoning, and
-[`docs/data_sources.md`](docs/data_sources.md) for source selection and trade-offs.
+See [`docs/writeup.md`](docs/writeup.md) for the one-page design & reasoning,
+[`docs/walkthrough.md`](docs/walkthrough.md) for the block-by-block pipeline walkthrough with
+figures, and [`docs/data_sources.md`](docs/data_sources.md) for source selection and trade-offs.
 
 ## Confidence scores
 
-Each attribute carries its own score in `[0, 1]`, and each is *earned*, not asserted:
-structure confidence is the **fraction of the roof explained by fitted planes**; appearance
-confidence is the **CLIP softmax**; geometry confidence reflects **valid-pixel coverage** and the
-**circular concentration** of aspect. Downstream users can threshold per attribute (e.g. trust
-`type` at ≥0.8, treat `green_roof` as advisory).
+Each attribute carries its own score in `[0, 1]`, derived from evidence rather than asserted:
+structure confidence is the fraction of the roof explained by fitted planes; appearance confidence
+is the CLIP softmax of the reported class; geometry confidence reflects valid-pixel coverage and
+the circular concentration of aspect. Downstream users can threshold per attribute (e.g. trust
+`type` at ≥0.8, treat `green_roof` as advisory). A `confidence_kind` map in every record says
+which kind of number each one is.
 
 ## Repository layout
 
@@ -118,7 +120,7 @@ roofkit/            the package (production pipeline)
 roof_attributes.ipynb   interactive exploration notebook (mirrors the package)
 roof_pipeline.py        thin compatibility shim for the notebook
 tests/                  pure-function unit tests (run in CI)
-docs/                   design write-up + data-source justification
+docs/                   one-page write-up, block-by-block walkthrough, data-source justification
 outputs/ figures/       sample results (committed); data/ is fetched & cached (gitignored)
 ```
 
@@ -134,9 +136,11 @@ CI (GitHub Actions) runs the unit tests on every push. Data is © Stadt Wien
 (data.wien.gv.at), CC BY 4.0; code is MIT (see `LICENSE`).
 
 **Tools used:** Python (geopandas, rasterio, shapely, contextily, open_clip / PyTorch CPU),
-CLIP ViT-B/32 (OpenAI weights) for zero-shot appearance. AI assistants (Claude) were used for
-design review, debugging and documentation editing; the pipeline design, data-source choices and
-final code are my own.
+CLIP ViT-B/32 (OpenAI weights) for zero-shot appearance. AI assistants were part of the workflow —
+Gemini Flash 3.5 for data-source research, Claude Sonnet 5 for debugging, Claude Opus 5 for
+ideation, endpoint lookups and the walkthrough document, Claude Fable 5 for polishing and tests;
+the full breakdown is in [`docs/writeup.md`](docs/writeup.md#use-of-ai). The pipeline design, the
+source decisions and the final code are my own.
 
 ## What I'd do with more time
 
