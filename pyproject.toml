@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "roofkit"
+version = "0.1.0"
+description = "Rooftop detection & attribute extraction from Vienna open geodata"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+[tool.setuptools]
+packages = ["roofkit"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = [
+    "E741",   # a, b, c are the natural names for plane coefficients
+    "E701",   # terse one-line conditionals, matching the notebook style
+    "E702",   # terse `a; b` multi-assignment, matching the notebook style
+    "E731",   # `sub = lambda A: ...` local shorthands, matching the notebook style
+]

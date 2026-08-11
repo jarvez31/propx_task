@@ -1,0 +1,19 @@
+# Runtime dependencies (pinned to a known-good set).
+# torch resolves to the CPU wheel via the extra index below — no GPU needed.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+numpy==2.4.6
+scipy==1.17.1
+geopandas==1.1.4
+rasterio==1.4.4
+shapely==2.1.2
+pyproj==3.7.2
+contextily==1.7.1
+pillow==12.3.0
+matplotlib==3.11.1
+plotly==6.9.0
+requests==2.34.2
+
+# vision transformer for zero-shot appearance tagging
+torch==2.13.0
+open_clip_torch==3.3.0
