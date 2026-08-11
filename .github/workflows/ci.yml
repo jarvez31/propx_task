@@ -15,7 +15,9 @@ jobs:
 
       # only the light deps needed by the pure-function tests (no torch / rasterio / contextily)
       - name: Install test deps
-        run: pip install numpy scipy shapely pyproj geopandas pytest ruff
+        run: |
+          pip install numpy scipy shapely pyproj geopandas pytest ruff
+          pip install -e . --no-build-isolation
 
       - name: Lint (advisory)
         continue-on-error: true
