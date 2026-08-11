@@ -92,7 +92,7 @@ def extract_building(geom, fmzk_id, scene: data.Scene, config: Config):
             "area": round(g["valid_frac"], 2),
             "type": type_conf,
             "material": round(material[best_material], 2),
-            "orientation": round(g["resultant"], 2) if rtype != "flat" else 0.0,
+            "orientation": round(g["R"], 2) if rtype != "flat" else 0.0,
             "slope": round(g["valid_frac"] * g["size_ok"], 2),
             "solar_pv": round(max(pv.values()), 2),        # confidence in the REPORTED class (yes or no),
             "green_roof": round(max(green.values()), 2),   # so False+0.00 can't happen; consistent with condition

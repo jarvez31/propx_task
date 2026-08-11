@@ -15,14 +15,14 @@ def geometric_attrs(roof, ndsm, slope_deg, aspect_deg):
     height = float(np.nanmedian(h_vals)) if npix else 0.0
     slope  = float(np.nanmedian(s_vals)) if npix else 0.0
 
-    ang = np.deg2rad(a_vals[valid]); ng = len(ang)           # orientation via circular mean (angles wrap at 360)
-    sin_sum, cos_sum = np.sin(ang).sum(), np.cos(ang).sum()
-    orientation = float(np.degrees(np.arctan2(sin_sum, cos_sum)) % 360)
-    resultant = float(np.hypot(sin_sum, cos_sum) / ng) if ng else 0.0   # concentration -> orientation confidence
+    ang = np.deg2rad(a_vals[valid]); n = len(ang)            # orientation via circular mean (angles wrap at 360)
+    S, C = np.sin(ang).sum(), np.cos(ang).sum()
+    orientation = float(np.degrees(np.arctan2(S, C)) % 360)
+    R = float(np.hypot(S, C) / n) if n else 0.0              # concentration -> orientation confidence
     size_ok = float(np.clip(npix / 50.0, 0, 1))
 
     return {"height_m": round(height, 1), "slope_deg": round(slope, 1),
-            "orientation_deg": round(orientation, 0), "resultant": resultant,
+            "orientation_deg": round(orientation, 0), "R": R,
             "valid_frac": valid_frac, "size_ok": size_ok, "npix": npix}
 
 
